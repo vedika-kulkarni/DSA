@@ -76,76 +76,122 @@ There is at least one subarray of length 2 that is unique, so the smallest uniqu
 ## Solution
 
 **Language:** Java  
-**Runtime:** 0 ms  
-**Memory:** 41.8 MB  
-**Submitted:** 2026-11-25T02:15:43.393Z  
+**Runtime:** 418 ms (beats 58.93%)  
+**Memory:** 105.3 MB (beats 82.14%)  
+**Submitted:** 2026-11-25T04:47:36.698Z  
 
 ```java
 
 import java.util.*;
 
 class Solution {
-    static final long MOD1 = 1000000007L;
-    static final long MOD2 = 1000000009L;
-    static final long BASE = 31L;
-
     public int smallestUniqueSubarray(int[] nums) {
         int n = nums.length;
 
-        long[] h1 = new long[n + 1];
-        long[] h2 = new long[n + 1];
-        long[] p1 = new long[n + 1];
-        long[] p2 = new long[n + 1];
+        // Coordinate compression
+        int[] sorted = nums.clone();
+        Arrays.sort(sorted);
 
-        p1[0] = 1;
-        p2[0] = 1;
-
+        int[] a = new int[n];
         for (int i = 0; i < n; i++) {
-            h1[i + 1] = (h1[i] * BASE + nums[i]) % MOD1;
-            h2[i + 1] = (h2[i] * BASE + nums[i]) % MOD2;
-
-            p1[i + 1] = (p1[i] * BASE) % MOD1;
-            p2[i + 1] = (p2[i] * BASE) % MOD2;
+            a[i] = Arrays.binarySearch(sorted, nums[i]);
         }
 
-        int low = 1, high = n, ans = n;
+        // Build suffix array
+        Integer[] sa = new Integer[n];
+        int[] rank = new int[n];
 
-        while (low <= high) {
-            int mid = low + (high - low) / 2;
+        for (int i = 0; i < n; i++) {
+            sa[i] = i;
+            rank[i] = a[i];
+        }
 
-            if (hasUnique(h1, h2, p1, p2, mid, n)) {
-                ans = mid;
-                high = mid - 1;
-            } else {
-                low = mid + 1;
+        for (int k = 1; k < n; k *= 2) {
+            final int len = k;
+            final int[] r = rank;
+
+            Arrays.sort(sa, (x, y) -> {
+                if (r[x] != r[y])
+                    return Integer.compare(r[x], r[y]);
+
+                int rx = x + len < n ? r[x + len] : -1;
+                int ry = y + len < n ? r[y + len] : -1;
+
+                return Integer.compare(rx, ry);
+            });
+
+            int[] nr = new int[n];
+            nr[sa[0]] = 0;
+
+            for (int i = 1; i < n; i++) {
+                int x = sa[i - 1];
+                int y = sa[i];
+
+                boolean diff = r[x] != r[y];
+
+                int rx = x + len < n ? r[x + len] : -1;
+                int ry = y + len < n ? r[y + len] : -1;
+
+                if (rx != ry) diff = true;
+
+                nr[y] = nr[x] + (diff ? 1 : 0);
+            }
+
+            rank = nr;
+
+            if (rank[sa[n - 1]] == n - 1) break;
+            if (k > n / 2) break;
+        }
+
+        // Build LCP
+        int[] pos = new int[n];
+        for (int i = 0; i < n; i++) {
+            pos[sa[i]] = i;
+        }
+
+        int[] lcp = new int[n];
+        int h = 0;
+
+        for (int i = 0; i < n; i++) {
+            int p = pos[i];
+
+            if (p == 0) {
+                h = 0;
+                continue;
+            }
+
+            int j = sa[p - 1];
+
+            while (i + h < n && j + h < n &&
+                   a[i + h] == a[j + h]) {
+                h++;
+            }
+
+            lcp[p] = h;
+
+            if (h > 0) h--;
+        }
+
+        // Find minimum unique subarray
+        int ans = n;
+
+        for (int i = 0; i < n; i++) {
+            int required = 1;
+
+            if (i > 0) {
+                required = Math.max(required, lcp[i] + 1);
+            }
+
+            if (i + 1 < n) {
+                required = Math.max(required, lcp[i + 1] + 1);
+            }
+
+            if (sa[i] + required <= n) {
+                ans = Math.min(ans, required);
             }
         }
 
         return ans;
-    }
-
-    private boolean hasUnique(long[] h1, long[] h2,
-                              long[] p1, long[] p2,
-                              int k, int n) {
-
-        Map<Long, Integer> freq = new HashMap<>();
-
-        for (int i = 0; i <= n - k; i++) {
-            long a = (h1[i + k] - h1[i] * p1[k] % MOD1 + MOD1) % MOD1;
-            long b = (h2[i + k] - h2[i] * p2[k] % MOD2 + MOD2) % MOD2;
-
-            long key = a * MOD2 + b;
-
-            freq.put(key, freq.getOrDefault(key, 0) + 1);
-        }
-
-        for (int count : freq.values()) {
-            if (count == 1) {
-                return true;
-            }
-        }
-
-        return false;
     }
 }
 
